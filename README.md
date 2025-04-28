@@ -1,4 +1,4 @@
-### Handwriting Generation with Style Transfer
+# Handwriting Generation with Style Transfer
 The goal of this project is to train a model that can generate handwriting line path in the same style as example images.
 
 This project aims to combine the style encoder of the One-DM (paper, code) and the ChiroDiff (paper, code) path diffusion model.
