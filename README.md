@@ -12,14 +12,9 @@ To run this,
 3. Extract the tar files with `tar xf <filename>`
 
 ## Timeline
-In Progress:
-1. Custom Dataloader for IAM dataset.
-  I got it mostly working with just a few things I might need to add like Laplacian transformation of the image
 
-2. Style Encoder from the One-DM paper.
-  Ethan is working on this right now and I'll be modifying my dataloader to  work with his style encoder.
-
-Next Steps:
+1. Custom Dataloader for IAM dataset. (In Progress)
+2. Style Encoder from the One-DM paper. (In Progress)
 3. Understand ChiroDiff and implement the input preprocessing needed
 4. Implement ChiroDiff model
 5. Hyperparameter tuning
