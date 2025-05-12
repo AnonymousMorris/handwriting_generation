@@ -4,6 +4,7 @@ import pickle
 from torch.utils.data import Dataset, DataLoader
 from torch.optim import Adam
 import torch.nn as nn
+import torch.nn.functional as F
 from models.diffusion_v2 import point_cloud_ddpm, BiRNN_denoiser
 import torch
 from tqdm import tqdm
@@ -64,19 +65,34 @@ class DeltaVMNIST(Dataset):
                         # drawing[0] = x_coords
                         # drawing[1] = y_coords
                         # drawing[2] = time stamp
-                        x_coords = np.array(drawing[0][0])
-                        y_coords = np.array(drawing[0][1])
-                        time_stamp = np.array(drawing[0][2])
-                        dx = np.zeros_like(x_coords)
-                        dy = np.zeros_like(y_coords)
+                        x_coords = torch.tensor(drawing[0][0], dtype=torch.float32)
+                        y_coords = torch.tensor(drawing[0][1], dtype=torch.float32)
+                        time_stamp = torch.tensor(drawing[0][2], dtype=torch.float32)
+                        
+                        # Normalize coordinates to [-1, 1] range using PyTorch's normalize
+                        # First center the coordinates
+                        x_coords = x_coords - x_coords.mean()
+                        y_coords = y_coords - y_coords.mean()
+                        
+                        # Then scale to [-1, 1] range
+                        x_scale = torch.abs(x_coords).max()
+                        y_scale = torch.abs(y_coords).max()
+
+                        box_max = max(x_scale, y_scale)
+                        
+                        assert(box_max > 0)
+                        x_coords = x_coords / box_max
+                        y_coords = y_coords / box_max
+                        
+                        dx = torch.zeros_like(x_coords)
+                        dy = torch.zeros_like(y_coords)
                         dx[0] = x_coords[0]
                         dy[0] = y_coords[0]
                         dx[1:] = x_coords[:-1] - x_coords[1:]
                         dy[1:] = y_coords[:-1] - y_coords[1:]
                         
                         # Stack the coordinates and time stamps
-                        formatted_data = np.stack([x_coords, y_coords, time_stamp, dx, dy], axis=1)
-                        
+                        formatted_data = torch.stack([x_coords, y_coords, time_stamp, dx, dy], dim=1)
                         
                         self.data.append(formatted_data)
                         self.labels.append(digit)

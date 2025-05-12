@@ -116,15 +116,38 @@ class point_cloud_ddpm(nn.Module):
         
         Args:
             x_0: Clean data tensor
+            t: Timestep tensor
+            lengths: Sequence lengths for packing
         """
         mask = torch.ones_like(x_0)
         mask[:,2,:] = 0
         x_t, noise = self.add_noise(x_0, t, mask=mask)
+        
+        # Pack the input sequence if lengths are provided
         if lengths is not None:
             x_t = pack_padded_sequence(x_t, lengths, batch_first=True, enforce_sorted=False)
-
+        
         pred_noise = self.model(x_t, t)
-        loss = F.mse_loss(noise[:, :, :2], pred_noise)
+        
+        # If lengths are provided, compute loss only on valid positions
+        if lengths is not None:
+            # Create a mask for valid positions
+            valid_mask = torch.zeros_like(noise[:, :, :2], dtype=torch.bool)
+            for i, length in enumerate(lengths):
+                valid_mask[i, :length, :] = True
+            
+            # Get the actual data points (non-zero positions)
+            actual_data_mask = (x_0[:, :, :2] != 0).any(dim=-1)
+            # Combine with length mask to get final valid positions
+            final_mask = valid_mask & actual_data_mask.unsqueeze(-1)
+            
+            # Compute loss only on valid positions with actual data
+            loss = F.mse_loss(noise[:, :, :2][final_mask], pred_noise[final_mask])
+        else:
+            # For non-packed sequences, still check for actual data
+            actual_data_mask = (x_0[:, :, :2] != 0).any(dim=-1).unsqueeze(-1)
+            loss = F.mse_loss(noise[:, :, :2][actual_data_mask], pred_noise[actual_data_mask])
+            
         return loss
 
 
