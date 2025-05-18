@@ -60,12 +60,12 @@ class DeltaVMNIST(Dataset):
                 if file.endswith('.pkl'):
                     with open(os.path.join(digit_dir, file), 'rb') as f:
                         raw_data = pickle.load(f)
-                        # Extract x, y, and pen_state from the drawing
+                        # Extract x, y, and norm_time from the drawing
                         drawing = raw_data['drawing']
                         # The drawing is a list of lists where:
                         # drawing[0] = x_coords
                         # drawing[1] = y_coords
-                        # drawing[2] = pen_states
+                        # drawing[2] = norm_time
                         x_coords = np.array(drawing[0][0])
                         y_coords = np.array(drawing[0][1])
                         time_stamp = np.array(drawing[0][2])
@@ -109,14 +109,6 @@ class DeltaVMNIST(Dataset):
         return self.data[idx], self.labels[idx]
 
 
-def reconstruct_repr(x):
-    # Set first point's dx and dy to 0
-    x[:,:,3:] = 0
-    # Calculate dx and dy as differences between consecutive points
-    x[:,1:,3] = x[:,1:,0] - x[:,:-1,0]  # dx = current_x - previous_x
-    x[:,1:,4] = x[:,1:,1] - x[:,:-1,1]  # dy = current_y - previous_y
-    return x
-
 def verify_model(model, num_samples=5, device='cuda', epoch=None):
     """
     Verify the trained diffusion model by generating samples and saving them to results directory.
@@ -132,11 +124,11 @@ def verify_model(model, num_samples=5, device='cuda', epoch=None):
         # Generate random noise
         batch_size = num_samples
         seq_length = 100  # Typical sequence length for MNIST digits
-        feature_dim = 5   # x, y, pen_state
+        feature_dim = 5   # x, y, norm_time 
         
         # Create random noise
         x = torch.randn(batch_size, seq_length, feature_dim, device=device)
-        x = reconstruct_repr(x)
+        x = model.reconstruct_repr(x)
         
         # Generate samples using the new sampling process
         for t in reversed(range(model.n_steps)):
@@ -162,7 +154,7 @@ def verify_model(model, num_samples=5, device='cuda', epoch=None):
             # Extract x, y coordinates and pen states
             x = samples[i, :, 0]
             y = samples[i, :, 1]
-            pen_states = samples[i, :, 2]
+            norm_time = samples[i, :, 2]
             
             ax = axes[i]
             cmap = plt.cm.viridis
@@ -171,14 +163,14 @@ def verify_model(model, num_samples=5, device='cuda', epoch=None):
             points = np.array([x, y]).T.reshape(-1, 1, 2)
             segments = np.concatenate([points[:-1], points[1:]], axis=1)
             # Use the average pen state for each segment for color
-            segment_colors = cmap((pen_states[:-1] + pen_states[1:]) / 2)
+            segment_colors = cmap((norm_time[:-1] + norm_time[1:]) / 2)
             
             # Create LineCollection for strokes
             lc = LineCollection(segments, colors=segment_colors, linewidths=2)
             ax.add_collection(lc)
             
             # Add scatter points colored by pen state
-            sc = ax.scatter(x, y, c=pen_states, cmap=cmap, s=20, alpha=0.8)
+            sc = ax.scatter(x, y, c=norm_time, cmap=cmap, s=20, alpha=0.8)
             
             ax.set_title(f'Sample {i+1}')
             ax.set_xlim(-1.1, 1.1)
@@ -256,25 +248,15 @@ def train_vmnist(epochs: int, batch_size: int, learning_rate: float, n_steps: in
         if epoch % 100 == 0:  # Verify every 100 epochs
             print(f"\nVerifying model after epoch {epoch}")
             verify_model(diffusion_model, num_samples=5, device=device, epoch=epoch)
+            ckpt_dir_path = "ckpt"
+            ckpt_path = os.path.join("ckpt", f"model_epoch{epoch}.pt")
+            os.makedirs(ckpt_dir_path, exist_ok=True)
             torch.save({
                 'model_state_dict': diffusion_model.state_dict(),
-            }, os.path.join("ckpt", f"model_epoch{epoch}.pt"))
+            }, ckpt_path)
     
     return diffusion_model
 if __name__ == "__main__":
-    # # Train the model
-    # model = train_vmnist(
-    #     epochs=10000,
-    #     batch_size=32,  # Reduced from 128
-    #     learning_rate=0.0005,  # Reduced from 0.001
-    #     # input_size=3,
-    #     n_steps=500,
-    #     beta_start=0.0001,
-    #     beta_end=0.02,
-    #     n_layers=2,
-    #     hidden_size=128,
-    #     dropout=0.2,
-    # )
     model = train_vmnist(
         epochs=10000,
         batch_size=32,  # Reduced from 128

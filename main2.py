@@ -59,7 +59,7 @@ class DeltaVMNIST(Dataset):
                 if file.endswith('.pkl'):
                     with open(os.path.join(digit_dir, file), 'rb') as f:
                         raw_data = pickle.load(f)
-                        # Extract x, y, and pen_state from the drawing
+                        # Extract x, y, and norm_time from the drawing
                         drawing = raw_data['drawing']
                         # The drawing is a list of lists where:
                         # drawing[0] = x_coords
@@ -131,18 +131,18 @@ class VectorMNISTDataset(Dataset):
                 if file.endswith('.pkl'):
                     with open(os.path.join(digit_dir, file), 'rb') as f:
                         raw_data = pickle.load(f)
-                        # Extract x, y, and pen_state from the drawing
+                        # Extract x, y, and norm_time from the drawing
                         drawing = raw_data['drawing']
                         # The drawing is a list of lists where:
                         # drawing[0] = x_coords
                         # drawing[1] = y_coords
-                        # drawing[2] = pen_states
+                        # drawing[2] = norm_time
                         x_coords = np.array(drawing[0][0])
                         y_coords = np.array(drawing[0][1])
-                        pen_states = np.array(drawing[0][2])
+                        norm_time = np.array(drawing[0][2])
                         
                         # Stack the coordinates and pen states
-                        formatted_data = np.stack([x_coords, y_coords, pen_states], axis=1)
+                        formatted_data = np.stack([x_coords, y_coords, norm_time], axis=1)
                         self.data.append(formatted_data)
                         self.labels.append(digit)
         
@@ -174,7 +174,7 @@ def verify_model(model, num_samples=5, device='cuda', epoch=None):
         # Generate random noise
         batch_size = num_samples
         seq_length = 100  # Typical sequence length for MNIST digits
-        feature_dim = 3   # x, y, pen_state
+        feature_dim = 3   # x, y, norm_time
         
         # Create random noise
         x = torch.randn(batch_size, seq_length, feature_dim, device=device)
@@ -203,7 +203,7 @@ def verify_model(model, num_samples=5, device='cuda', epoch=None):
             # Extract x, y coordinates and pen states
             x = samples[i, :, 0]
             y = samples[i, :, 1]
-            pen_states = samples[i, :, 2]
+            norm_time = samples[i, :, 2]
             
             ax = axes[i]
             cmap = plt.cm.viridis
@@ -212,14 +212,14 @@ def verify_model(model, num_samples=5, device='cuda', epoch=None):
             points = np.array([x, y]).T.reshape(-1, 1, 2)
             segments = np.concatenate([points[:-1], points[1:]], axis=1)
             # Use the average pen state for each segment for color
-            segment_colors = cmap((pen_states[:-1] + pen_states[1:]) / 2)
+            segment_colors = cmap((norm_time[:-1] + norm_time[1:]) / 2)
             
             # Create LineCollection for strokes
             lc = LineCollection(segments, colors=segment_colors, linewidths=2)
             ax.add_collection(lc)
             
             # Add scatter points colored by pen state
-            sc = ax.scatter(x, y, c=pen_states, cmap=cmap, s=20, alpha=0.8)
+            sc = ax.scatter(x, y, c=norm_time, cmap=cmap, s=20, alpha=0.8)
             
             ax.set_title(f'Sample {i+1}')
             ax.set_xlim(-1.1, 1.1)
@@ -301,18 +301,6 @@ def train_vmnist(epochs: int, batch_size: int, learning_rate: float, n_steps: in
     return diffusion_model
 
 # Train the model
-model = train_vmnist(
-    epochs=10000,
-    batch_size=32,  # Reduced from 128
-    learning_rate=0.0005,  # Reduced from 0.001
-    # input_size=3,
-    n_steps=500,
-    beta_start=0.0001,
-    beta_end=0.02,
-    n_layers=2,
-    hidden_size=128,
-    dropout=0.2,
-)
 model = train_vmnist(
     epochs=10000,
     batch_size=32,  # Reduced from 128

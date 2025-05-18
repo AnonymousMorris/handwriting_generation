@@ -1,2 +1,5 @@
 /data
 /__pycache__
+/ckpt
+/results
+/models/__pycache__
